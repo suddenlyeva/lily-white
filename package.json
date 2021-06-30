@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/suddenlyeva/lily-white#readme",
   "dependencies": {
-    "axios": "^0.21.1"
+    "axios": "^0.21.1",
+    "discord-buttons": "^3.2.1"
   }
 }
