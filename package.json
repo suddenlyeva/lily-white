@@ -1,0 +1,19 @@
+{
+  "name": "lily-white",
+  "version": "1.0.0",
+  "description": "Lily White Bot for Discord",
+  "main": "index.js",
+  "scripts": {
+    "test": "start"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/suddenlyeva/lily-white.git"
+  },
+  "author": "EvaRia",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/suddenlyeva/lily-white/issues"
+  },
+  "homepage": "https://github.com/suddenlyeva/lily-white#readme"
+}
