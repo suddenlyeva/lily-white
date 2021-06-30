@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/suddenlyeva/lily-white/issues"
   },
-  "homepage": "https://github.com/suddenlyeva/lily-white#readme"
+  "homepage": "https://github.com/suddenlyeva/lily-white#readme",
+  "dependencies": {
+    "axios": "^0.21.1"
+  }
 }
