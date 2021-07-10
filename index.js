@@ -5,7 +5,7 @@ const axios = require('axios')
 const disbut = require('discord-buttons');
 disbut(client);
 
-function buttons() {
+function search_buttons() {
 
   let prev_button = new disbut.MessageButton()
     .setLabel('<')
@@ -42,7 +42,8 @@ client.on('message', msg => {
 let total_results
 let search_results
 let offset
-let current_search
+let current_message
+let query
 
 let manga = async () => {
   let manga = search_results[search_index]
@@ -72,11 +73,11 @@ client.on('message', async msg => {
   const cmd = msg.content.split(' ')[0]
   if (cmd === '~search') {
 
-    if (current_search) {
-      await current_search.delete()
+    if (current_message) {
+      current_message.delete()
     }
 
-    const query = msg.content.substring(8)
+    query = msg.content.substring(8)
     const response = await axios.get('https://api.mangadex.org/manga?title=' + query)
     total_results = response.data.total
     search_results = response.data.results
@@ -86,7 +87,7 @@ client.on('message', async msg => {
     if (search_results.length) {
 
       let embed = await manga()
-      current_search = await msg.reply({ component: buttons(), embed })
+      current_message = await msg.reply({ component: search_buttons(), embed })
 
     }
     else {
@@ -94,6 +95,22 @@ client.on('message', async msg => {
         .setColor(0xffaffa)
         .setTitle('No Results Found')
       )
+    }
+  }
+});
+
+client.on('clickButton', async (button) => {
+  if (button.id === 'prev_button') {
+    if (search_index > 0) {
+      search_index--
+
+      let embed = await manga()
+      current_message.delete()
+      current_message = await button.channel.send({ component: search_buttons(), embed })
+      await button.defer()
+    }
+    else {
+      await button.reply.send('Reached Beginning of Results', true);
     }
   }
 });
@@ -110,7 +127,8 @@ client.on('clickButton', async (button) => {
       }
 
       let embed = await manga()
-      await button.message.edit({ component: buttons(), embed })
+      current_message.delete()
+      current_message = await button.channel.send({ component: search_buttons(), embed })
       await button.defer()
     }
     else {
@@ -119,18 +137,194 @@ client.on('clickButton', async (button) => {
   }
 });
 
-client.on('clickButton', async (button) => {
-  if (button.id === 'prev_button') {
-    if (search_index > 0) {
-      search_index--
+let current_manga
+let page_index = 0
+let chapter_offset = 0
+let chapter
+let total_chapters
+let server_url
 
-      let embed = await manga()
-      await button.message.edit({ component: buttons(), embed })
-      await button.defer()
+client.on('clickButton', async (button) => {
+  if (button.id === 'read_button') {
+    let manga = search_results[search_index]
+    current_manga = manga.data.id
+
+    let chapters = await axios.get('https://api.mangadex.org/chapter?translatedLanguage[]=en&manga=' + current_manga + '&offset=' + chapter_offset)
+    chapter = chapters.data.results[0]
+    total_chapters = chapters.data.total
+
+    let server = await axios.get('https://api.mangadex.org/at-home/server/' + chapter.data.id)
+
+    server_url = server.data.baseUrl
+
+    let prev_page = new disbut.MessageButton()
+    .setLabel('<')
+    .setStyle('grey')
+    .setID('prev_page')
+
+    let next_page = new disbut.MessageButton()
+      .setLabel('>')
+      .setStyle('grey')
+      .setID('next_page')
+
+    let row = new disbut.MessageActionRow()
+      .addComponent(prev_page)
+      .addComponent(next_page)
+
+    let embed = new Discord.MessageEmbed()
+      .setColor(0xffaffa)
+      .setAuthor('Ch. ' + chapter.data.attributes.chapter + ': ' + chapter.data.attributes.title)
+      .setImage(server_url + '/data/' + chapter.data.attributes.hash + '/' + chapter.data.attributes.data[page_index])
+      .setFooter('Page ' + (page_index + 1) + ' of ' + chapter.data.attributes.data.length)
+      
+    current_message.delete()
+    current_message = await button.channel.send(server_url + '/data/' + chapter.data.attributes.hash + '/' + chapter.data.attributes.data[page_index], row)
+
+    await button.defer()
+  }
+});
+
+client.on('message', async msg => {
+  const cmd = msg.content.split(' ')[0]
+  const arg = msg.content.split(' ')[1]
+  if (cmd === '~chapter') {
+
+    if (!current_manga) {
+      msg.reply({ 'embed' : { 'description' : 'Not currently reading any manga!' }})
+      return
+    }
+
+    if (isNaN(arg) || +arg < 1) {
+      msg.reply({ 'embed' : { 'description' : 'Invalid Chapter Number' }})
+      return
+    }
+
+    if (arg > total_chapters ) {
+      msg.reply({ 'embed' : { 'description' : 'Chapter not available!' }})
+      return
+    }
+
+    chapter_offset = arg
+    let chapters = await axios.get('https://api.mangadex.org/chapter?translatedLanguage[]=en&manga=' + current_manga + '&offset=' + chapter_offset)
+    chapter = chapters.data.results[0]
+    total_chapters = chapters.data.total
+    page_index = 0
+
+    let prev_page = new disbut.MessageButton()
+    .setLabel('<')
+    .setStyle('grey')
+    .setID('prev_page')
+
+    let next_page = new disbut.MessageButton()
+      .setLabel('>')
+      .setStyle('grey')
+      .setID('next_page')
+
+    let row = new disbut.MessageActionRow()
+      .addComponent(prev_page)
+      .addComponent(next_page)
+
+    current_message.delete()
+    current_message = await msg.channel.send(server_url + '/data/' + chapter.data.attributes.hash + '/' + chapter.data.attributes.data[page_index], row)
+
+  }
+});
+
+client.on('clickButton', async (button) => {
+  if (button.id === 'next_page') {
+
+    page_index++
+
+    if (page_index >= chapter.data.attributes.data.length) {
+      chapter_offset++
+      if (chapter_offset >= total_chapters) {
+
+        let embed = new Discord.MessageEmbed()
+          .setColor(0xffaffa)
+          .setDescription('You\'ve reached the end of currently available chapters.')
+
+        await current_message.delete()
+        await button.channel.send(embed)
+        await button.defer()
+        return
+      }
+      let chapters = await axios.get('https://api.mangadex.org/chapter?translatedLanguage[]=en&manga=' + current_manga + '&offset=' + chapter_offset)
+      chapter = chapters.data.results[0]
+
+      page_index = 0
+    }
+
+    let prev_page = new disbut.MessageButton()
+    .setLabel('<')
+    .setStyle('grey')
+    .setID('prev_page')
+
+    let next_page = new disbut.MessageButton()
+      .setLabel('>')
+      .setStyle('grey')
+      .setID('next_page')
+
+    let row = new disbut.MessageActionRow()
+      .addComponent(prev_page)
+      .addComponent(next_page)
+
+    let embed = new Discord.MessageEmbed()
+      .setColor(0xffaffa)
+      .setAuthor('Ch. ' + chapter.data.attributes.chapter + ': ' + chapter.data.attributes.title)
+      .setImage(server_url + '/data/' + chapter.data.attributes.hash + '/' + chapter.data.attributes.data[page_index])
+      .setFooter('Page ' + (page_index + 1) + ' of ' + chapter.data.attributes.data.length)
+
+    current_message.delete()
+    current_message = await button.channel.send(server_url + '/data/' + chapter.data.attributes.hash + '/' + chapter.data.attributes.data[page_index], row)
+
+    await button.defer()
+  }
+});
+
+client.on('clickButton', async (button) => {
+  if (button.id === 'prev_page') {
+
+    if (page_index === 0) {
+      if (chapter_offset === 0) {
+        await button.reply.send('This is the beginning of the manga!', true)
+        return
+      }
+      chapter_offset--
+
+      let chapters = await axios.get('https://api.mangadex.org/chapter?translatedLanguage[]=en&manga=' + current_manga + '&offset=' + chapter_offset)
+      chapter = chapters.data.results[0]
+
+      page_index = chapter.data.attributes.data.length - 1
+
     }
     else {
-      await button.reply.send('Reached Beginning of Results', true);
+      page_index--
     }
+
+    let prev_page = new disbut.MessageButton()
+    .setLabel('<')
+    .setStyle('grey')
+    .setID('prev_page')
+
+    let next_page = new disbut.MessageButton()
+      .setLabel('>')
+      .setStyle('grey')
+      .setID('next_page')
+
+    let row = new disbut.MessageActionRow()
+      .addComponent(prev_page)
+      .addComponent(next_page)
+
+    let embed = new Discord.MessageEmbed()
+      .setColor(0xffaffa)
+      .setAuthor('Ch. ' + chapter.data.attributes.chapter + ': ' + chapter.data.attributes.title)
+      .setImage(server_url + '/data/' + chapter.data.attributes.hash + '/' + chapter.data.attributes.data[page_index])
+      .setFooter('Page ' + (page_index + 1) + ' of ' + chapter.data.attributes.data.length)
+      
+    await current_message.delete()
+    current_message = await button.channel.send(server_url + '/data/' + chapter.data.attributes.hash + '/' + chapter.data.attributes.data[page_index], row)
+
+    await button.defer()
   }
 });
 
