@@ -5,6 +5,11 @@ const axios = require('axios')
 const disbut = require('discord-buttons');
 disbut(client);
 
+if (typeof localStorage === "undefined" || localStorage === null) {
+  var LocalStorage = require('node-localstorage').LocalStorage;
+  localStorage = new LocalStorage('./localStorage');
+}
+
 function search_buttons() {
 
   let prev_button = new disbut.MessageButton()
@@ -41,6 +46,7 @@ client.on('message', msg => {
 
 let total_results
 let search_results
+let search_index
 let offset
 let current_message
 let query
@@ -153,6 +159,11 @@ client.on('clickButton', async (button) => {
     chapter = chapters.data.results[0]
     total_chapters = chapters.data.total
 
+    if (localStorage.getItem(current_manga) == null) {
+      localStorage.setItem(current_manga, chapter_offset)
+    }
+    chapter_offset = +localStorage.getItem(current_manga)
+
     let server = await axios.get('https://api.mangadex.org/at-home/server/' + chapter.data.id)
 
     server_url = server.data.baseUrl
@@ -227,6 +238,7 @@ client.on('message', async msg => {
     current_message.delete()
     current_message = await msg.channel.send(server_url + '/data/' + chapter.data.attributes.hash + '/' + chapter.data.attributes.data[page_index], row)
 
+    localStorage.setItem(current_manga, chapter_offset)
   }
 });
 
@@ -278,6 +290,7 @@ client.on('clickButton', async (button) => {
     current_message = await button.channel.send(server_url + '/data/' + chapter.data.attributes.hash + '/' + chapter.data.attributes.data[page_index], row)
 
     await button.defer()
+    localStorage.setItem(current_manga, chapter_offset)
   }
 });
 
@@ -325,6 +338,7 @@ client.on('clickButton', async (button) => {
     current_message = await button.channel.send(server_url + '/data/' + chapter.data.attributes.hash + '/' + chapter.data.attributes.data[page_index], row)
 
     await button.defer()
+    localStorage.setItem(current_manga, chapter_offset)
   }
 });
 
